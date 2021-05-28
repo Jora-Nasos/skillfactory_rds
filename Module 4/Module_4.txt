@@ -1,0 +1,224 @@
+Задание 4.1
+
+SELECT a.city,
+       count(a.airport_code)
+FROM dst_project.airports a
+GROUP BY a.city
+ORDER BY 2 DESC
+
+
+
+Задание 4.2
+SELECT DISTINCT status
+FROM dst_project.flights f
+
+SELECT count(f.flight_id)
+FROM dst_project.flights f
+WHERE f.status='Departed'
+
+SELECT s.aircraft_code,
+       count(s.seat_no)
+FROM dst_project.seats s
+GROUP BY s.aircraft_code
+
+SELECT count(*)
+FROM dst_project.flights f
+WHERE f.status='Arrived'
+  AND f.actual_arrival<='09-01-2017'
+  AND f.actual_arrival>='04-01-2017'
+
+
+
+
+Задание 4.3
+SELECT count(f.flight_no)
+FROM dst_project.flights f
+WHERE f.status='Cancelled'
+
+
+SELECT r.model
+FROM dst_project.aircrafts r
+WHERE r.model like 'Boeing%'
+  OR r.model like 'Sukhoi Superjet%'
+  OR r.model like 'Airbus%'
+ORDER BY 1
+
+
+SELECT count(r.timezone),
+       CASE
+           WHEN r.timezone like 'Asia%' THEN 'Asia'
+           WHEN r.timezone like 'Europe%' THEN 'Europe'
+           WHEN r.timezone like 'Australia%' THEN 'Australia'
+           ELSE 'terra_incognita'
+       END AS World_Parts
+FROM dst_project.airports r
+GROUP BY CASE
+             WHEN r.timezone like 'Asia%' THEN 'Asia'
+             WHEN r.timezone like 'Europe%' THEN 'Europe'
+             WHEN r.timezone like 'Australia%' THEN 'Australia'
+             ELSE 'terra_incognita'
+         END
+
+
+
+SELECT sample.World_Parts,
+       count(sample.timezone)
+FROM
+  (SELECT 'Asia' World_Parts,
+                          r.timezone
+   FROM dst_project.airports r
+   WHERE r.timezone like 'Asia%'
+   UNION ALL SELECT 'Europe' World_Parts,
+                                      r.timezone
+   FROM dst_project.airports r
+   WHERE r.timezone like 'Europe%'
+   UNION ALL SELECT 'Australia' World_Parts,
+                                         r.timezone
+   FROM dst_project.airports r
+   WHERE r.timezone like 'Australia%') AS sample
+GROUP BY sample.World_Parts
+
+SELECT *,
+       f.actual_arrival - f.scheduled_arrival delay
+FROM dst_project.flights f
+WHERE f.status='Arrived'
+ORDER BY delay DESC
+
+
+
+
+
+Задание 4.4
+SELECT *
+FROM dst_project.flights f
+ORDER BY f.scheduled_departure ASC
+
+
+SELECT max(f.scheduled_arrival - f.scheduled_departure)
+FROM dst_project.flights f
+
+
+SELECT f.arrival_airport,
+       f.departure_airport,
+       f.scheduled_arrival - f.scheduled_departure flight_time
+FROM dst_project.flights f
+ORDER BY flight_time DESC
+
+
+SELECT avg(f.actual_arrival - f.actual_departure) avg_flight_time
+FROM dst_project.flights f
+
+
+
+
+Задание 4.5
+SELECT s.fare_conditions,
+       count(s.seat_no)
+FROM dst_project.seats s
+WHERE s.aircraft_code='SU9'
+GROUP BY s.fare_conditions
+
+SELECT min(total_amount)
+FROM dst_project.bookings
+
+SELECT bp.seat_no
+FROM dst_project.boarding_passes bp
+JOIN dst_project.ticket_flights tf ON bp.ticket_no=tf.ticket_no
+AND bp.flight_id=tf.flight_id
+JOIN dst_project.tickets t ON t.ticket_no = bp.ticket_no
+WHERE t.passenger_id='4313 788533'
+
+
+
+Задание 5.1
+SELECT count(*)
+FROM dst_Project.flights f
+WHERE f.arrival_airport='AAQ'
+  AND f.status='Arrived'
+  AND (f.actual_departure BETWEEN '01-01-2017' AND '12-31-2017')
+
+
+SELECT count(*)
+FROM dst_Project.flights f
+WHERE (departure_airport = 'AAQ')
+  AND (date_part('year', actual_departure) = 2017)
+  AND (date_part('month', actual_departure) in (12,1,2))
+
+
+SELECT count(*)
+FROM dst_Project.flights f
+WHERE f.departure_airport='AAQ'
+  AND f.status='Cancelled'
+
+
+SELECT count(DISTINCT f.flight_id)
+FROM dst_Project.flights f
+WHERE f.departure_airport='AAQ'
+  AND f.arrival_airport not in ('SVO','VKO','DME')
+
+
+SELECT s.aircraft_code,
+       ac.model,
+       count(s.seat_no)
+FROM dst_Project.seats s
+JOIN dst_Project.aircrafts ac ON ac.aircraft_code = s.aircraft_code
+WHERE s.aircraft_code in
+    (SELECT DISTINCT f.aircraft_code
+     FROM dst_Project.flights f
+     WHERE f.departure_airport='AAQ')
+GROUP BY s.aircraft_code,
+         ac.model
+
+
+
+
+
+Итоговое задание
+
+WITH aircraft_param AS -- Таблица самолетов и их характеристик
+
+  (SELECT CASE
+              WHEN ac.aircraft_code = '733' THEN 2600 -- 2600 кг/ч расход топлива на Boeing 737-300 (733)
+
+              WHEN ac.aircraft_code = 'SU9' THEN 1670 -- 1670 кг/ч расход топлива на SSJ -100 (SU9)
+
+          END AS fuel_consumption,
+          ac.aircraft_code,
+          count(ac.seat_no) seats_number
+   FROM dst_Project.seats ac
+   GROUP BY ac.aircraft_code), flight_profile AS -- Таблица зимних вылетов из Анапы с данными о заполненности салона, времени полета и стоимости всех купленных билетов
+
+  (SELECT f.flight_id,
+          f.aircraft_code,
+          f.arrival_airport,
+          sum(t.amount) total_amount,
+          count(t.ticket_no) total_passengers,
+          date_part('hour', f.actual_arrival-f.actual_departure) + date_part('MINUTE', f.actual_arrival-f.actual_departure)/60 flight_time -- время полета в часах
+
+   FROM dst_project.flights f
+   LEFT JOIN dst_project.ticket_flights t ON f.flight_id = t.flight_id
+   WHERE f.departure_airport = 'AAQ'
+     AND (date_trunc('month', f.scheduled_departure) in ('2017-01-01',
+                                                         '2017-02-01',
+                                                         '2017-12-01'))
+     AND status not in ('Cancelled')
+     AND t.flight_id IS NOT NULL
+   GROUP BY f.flight_id,
+            f.aircraft_code,
+            f.arrival_airport,
+            flight_time)
+SELECT fp.flight_id,                                               -- ID вылета
+fp.arrival_airport,                                                -- Аэропорт прибытия
+fp.aircraft_code,                                                  -- Модель самолета (код)
+ap.seats_number,                                                   -- Мест на борту
+fp.total_passengers,                                               -- Количество пассажиров
+fp.total_passengers*1./ap.seats_number*100 fullness,               -- Заполненность салона, %
+fp.total_amount,                                                   -- Сумма стоимости всех проданных билетов на конкретный вылет, руб
+fp.flight_time,                                                    -- Время полета, ч
+ap.fuel_consumption*fp.flight_time flight_fuel_cons,               -- расход топлива за весь полет, кг
+ap.fuel_consumption*fp.flight_time*31.81 flight_fuel_amount,       -- стоимость топлива за полет, руб
+fp.total_amount-ap.fuel_consumption*fp.flight_time*31.81 profit    -- Разница между суммарной стоимости всех билетов за полет и стоимостью топлива за полет, руб
+
+FROM flight_profile fp
+JOIN aircraft_param ap ON fp.aircraft_code=ap.aircraft_code
+ORDER BY profit ASC
